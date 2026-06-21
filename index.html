@@ -271,7 +271,40 @@
             margin-bottom: 20px;
             display: none;
         }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-box {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .modal-box h3 { margin-top: 0; color: white; }
+        .modal-box input {
+            font-size: 24px;
+            text-align: center;
+            letter-spacing: 5px;
+            margin-bottom: 15px;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
     </style>
+
 </head>
 <body>
 
@@ -289,6 +322,24 @@
             <div class="login-error" id="loginError"></div>
         </div>
     </div>
+
+    <!-- Extract Login script to run instantly -->
+    <script>
+        window.doLogin = (e) => {
+            e.preventDefault();
+            const user = document.getElementById('loginUser').value.trim();
+            const pass = document.getElementById('loginPass').value;
+            if (user === 'spos official' && pass === '@Saveen2014518') {
+                document.getElementById('loginOverlay').style.display = 'none';
+                document.getElementById('mainApp').style.display = 'block';
+            } else {
+                const err = document.getElementById('loginError');
+                err.textContent = 'Invalid username or password!';
+                document.getElementById('loginPass').value = '';
+                setTimeout(() => { err.textContent = ''; }, 3000);
+            }
+        };
+    </script>
 
     <!-- ===== MAIN APP ===== -->
     <div id="mainApp" style="display:none;">
@@ -329,6 +380,10 @@
                     <div class="form-group">
                         <label>Address Line 3</label>
                         <input type="text" id="address3">
+                    </div>
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" id="clientEmail" placeholder="e.g. client@example.com">
                     </div>
                     
                     <div class="flex-row">
@@ -474,6 +529,7 @@
                         <label>Status</label>
                         <select id="fltStatus" onchange="renderServices()">
                             <option value="ALL">All</option>
+                            <option value="PENDING">Pending Approval</option>
                             <option value="UNSETTLED">Unsettled (Credit)</option>
                             <option value="SETTLED">Settled</option>
                         </select>
@@ -520,23 +576,6 @@
         let allServices = [];
         let allClients = [];
         let currentClientsData = {};
-
-        // ===== LOGIN LOGIC =====
-        window.doLogin = (e) => {
-            e.preventDefault();
-            const user = document.getElementById('loginUser').value.trim();
-            const pass = document.getElementById('loginPass').value;
-            if (user === 'spos official' && pass === '@Saveen2014518') {
-                document.getElementById('loginOverlay').style.display = 'none';
-                document.getElementById('mainApp').style.display = 'block';
-            } else {
-                const err = document.getElementById('loginError');
-                err.textContent = '❌ Invalid username or password!';
-                document.getElementById('loginPass').value = '';
-                setTimeout(() => { err.textContent = ''; }, 3000);
-            }
-        };
-        // ===== END LOGIN LOGIC =====
 
         // Tab Switching Logic
         window.switchTab = (tabId, btn) => {
@@ -586,6 +625,7 @@
                 Address1: document.getElementById('address1').value.trim(),
                 Address2: document.getElementById('address2').value.trim(),
                 Address3: document.getElementById('address3').value.trim(),
+                Email: document.getElementById('clientEmail').value.trim(),
                 Phone1: document.getElementById('phone1').value.trim(),
                 Phone2: document.getElementById('phone2').value.trim(),
                 LicenseKey1: document.getElementById('key1').value.trim(),
@@ -655,6 +695,7 @@
             document.getElementById('address1').value = client.Address1 || '';
             document.getElementById('address2').value = client.Address2 || '';
             document.getElementById('address3').value = client.Address3 || '';
+            document.getElementById('clientEmail').value = client.Email || '';
             document.getElementById('phone1').value = client.Phone1 || '';
             document.getElementById('phone2').value = client.Phone2 || '';
             document.getElementById('key1').value = client.LicenseKey1 || '';
@@ -700,6 +741,11 @@
             document.getElementById('srvCredit').value = credit > 0 ? credit.toFixed(2) : '0.00';
         };
 
+        let currentOtp = null;
+        let pendingServiceData = null;
+        let pendingApprovalId = null;
+        let isApproving = false;
+
         document.getElementById('serviceForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             if(!db) return;
@@ -709,28 +755,122 @@
             const paid = parseFloat(document.getElementById('srvPaid').value) || 0;
             const credit = total - paid;
 
-            const serviceData = {
+            const client = allClients.find(c => c.CompanyName === clientName);
+            if (!client || !client.Email) {
+                alert("This client does not have an Email Address registered. Please update their details first.");
+                return;
+            }
+
+            pendingServiceData = {
                 ClientName: clientName,
                 Date: document.getElementById('srvDate').value,
                 Description: document.getElementById('srvDesc').value.trim(),
                 TotalAmount: total,
                 PaidAmount: paid,
                 CreditAmount: credit > 0 ? credit : 0,
-                Status: (credit <= 0) ? 'Settled' : 'Unsettled',
+                Status: 'Pending Approval',
                 Timestamp: Date.now()
             };
 
-            try {
-                // Generate unique ID for service
-                const newServiceRef = push(ref(db, 'services'));
-                await set(newServiceRef, serviceData);
-                alert("Service Record Saved!");
-                e.target.reset();
-                document.getElementById('srvDate').valueAsDate = new Date();
-            } catch (error) {
-                alert("Error saving service: " + error.message);
-            }
+            isApproving = false;
+            currentOtp = Math.floor(100000 + Math.random() * 900000).toString();
+            const today = new Date().toLocaleDateString('en-CA');
+            const body = `SPOS Client Servise Rergistatin\n${today}\nThis is the Your Servise Approved Code . Please Inform This Code For Admin .\nYour Job Roll Number is ${currentOtp}\n©️SPOS Software - 2026`;
+            
+            const gasUrl = "https://script.google.com/macros/s/AKfycbw4n6h-yoqR-iga4axLQ0D1SLCxYKbi74OPTqDi7PB2IzsmjNBEEaOKw6Ay0cxDkS88sQ/exec";
+            fetch(gasUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({
+                    "to": client.Email,
+                    "subject": "Service Creation OTP",
+                    "body": body
+                })
+            }).then(() => alert("OTP Code has been sent to " + client.Email + " successfully!"))
+              .catch(err => alert("Email Delivery Failed!\nError: " + err));
+            
+            document.getElementById('otpInput').value = '';
+            document.getElementById('otpModal').style.display = 'flex';
         });
+
+        window.closeOtpModal = () => {
+            document.getElementById('otpModal').style.display = 'none';
+            currentOtp = null;
+            pendingServiceData = null;
+            pendingApprovalId = null;
+        };
+
+        window.verifyOtp = async () => {
+            const input = document.getElementById('otpInput').value.trim();
+            if (input !== currentOtp) {
+                alert("Invalid OTP! Please try again.");
+                return;
+            }
+
+            try {
+                if (isApproving && pendingApprovalId) {
+                    await set(ref(db, `services/${pendingApprovalId}/Status`), 'Approved');
+                    alert("Service Note Approved Successfully!");
+                } else if (pendingServiceData) {
+                    const newServiceRef = push(ref(db, 'services'));
+                    await set(newServiceRef, pendingServiceData);
+                    alert("Service Record Saved Successfully!");
+                    document.getElementById('serviceForm').reset();
+                    document.getElementById('srvDate').valueAsDate = new Date();
+                }
+                closeOtpModal();
+            } catch (error) {
+                alert("Error: " + error.message);
+            }
+        };
+
+        window.openApprovalModal = (serviceId) => {
+            pendingApprovalId = serviceId;
+            document.getElementById('approvalModal').style.display = 'flex';
+        };
+
+        window.closeApprovalModal = () => {
+            document.getElementById('approvalModal').style.display = 'none';
+            pendingApprovalId = null;
+        };
+
+        window.initiateApproval = (method) => {
+            if (!pendingApprovalId) return;
+            const service = allServices.find(s => s.id === pendingApprovalId);
+            const client = allClients.find(c => c.CompanyName === service.ClientName);
+
+            if (method === 'email' && (!client || !client.Email)) {
+                alert("Client has no email registered!"); return;
+            }
+            if (method === 'sms' && (!client || !client.Phone1)) {
+                alert("Client has no Phone 1 registered!"); return;
+            }
+
+            currentOtp = Math.floor(100000 + Math.random() * 900000).toString();
+            const today = new Date().toLocaleDateString('en-CA');
+            const body = `SPOS Client Servise Rergistatin\n${today}\nThis is the Your Servise Approved Code . Please Inform This Code For Admin .\nYour Job Roll Number is ${currentOtp}\n©️SPOS Software - 2026`;
+
+            if (method === 'email') {
+                const gasUrl = "https://script.google.com/macros/s/AKfycbw4n6h-yoqR-iga4axLQ0D1SLCxYKbi74OPTqDi7PB2IzsmjNBEEaOKw6Ay0cxDkS88sQ/exec";
+                fetch(gasUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: new URLSearchParams({
+                        "to": client.Email,
+                        "subject": "Service Approval OTP",
+                        "body": body
+                    })
+                }).then(() => alert("OTP Code has been sent to " + client.Email + " successfully!"))
+                  .catch(err => alert("Email Delivery Failed!\nError: " + err));
+            } else {
+                window.location.href = `sms:${client.Phone1}?body=${encodeURIComponent(body)}`;
+            }
+
+            isApproving = true;
+            document.getElementById('approvalModal').style.display = 'none';
+            document.getElementById('otpInput').value = '';
+            document.getElementById('otpModal').style.display = 'flex';
+        };
 
         function loadServices() {
             onValue(ref(db, 'services'), (snapshot) => {
@@ -764,6 +904,7 @@
                 if (fltEndDate && s.Date > fltEndDate) match = false;
                 if (fltStatus === 'SETTLED' && s.Status !== 'Settled') match = false;
                 if (fltStatus === 'UNSETTLED' && s.Status !== 'Unsettled') match = false;
+                if (fltStatus === 'PENDING' && s.Status !== 'Pending Approval') match = false;
                 return match;
             });
 
@@ -784,7 +925,9 @@
                     <td style="color:#fbbf24; font-weight:bold;">${s.CreditAmount > 0 ? 'Rs ' + s.CreditAmount.toFixed(2) : '-'}</td>
                     <td><span class="badge ${badgeClass}">${s.Status}</span></td>
                     <td>
-                        ${s.Status === 'Unsettled' ? 
+                        ${s.Status === 'Pending Approval' ?
+                          `<button class="action-btn" style="background:#8b5cf6;" onclick="openApprovalModal('${s.id}')">Approve</button>` : ''}
+                        ${s.Status === 'Unsettled' || s.Status === 'Approved' ? 
                           `<button class="action-btn btn-success" onclick="addPayment('${s.id}', ${s.CreditAmount}, ${s.PaidAmount})">Settle</button>` : 
                           ''}
                         <button class="action-btn btn-danger" onclick="deleteService('${s.id}')">Del</button>
@@ -831,5 +974,32 @@
             }
         };
     </script>
+
+    <!-- OTP Verification Modal -->
+    <div id="otpModal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>Verify Action</h3>
+            <p id="otpMsg" style="color:#cbd5e1; font-size:14px; margin-bottom:15px;">Please enter the OTP sent to the client.</p>
+            <input type="text" id="otpInput" maxlength="6" placeholder="000000" autocomplete="off">
+            <div class="modal-actions">
+                <button type="button" class="btn-danger" onclick="closeOtpModal()">Cancel</button>
+                <button type="button" onclick="verifyOtp()">Verify OTP</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Approval Choice Modal -->
+    <div id="approvalModal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>Approve Service Note</h3>
+            <p style="color:#cbd5e1; font-size:14px; margin-bottom:15px;">How do you want to send the OTP code to the client?</p>
+            <div class="modal-actions" style="flex-direction: column;">
+                <button type="button" onclick="initiateApproval('email')" style="background: #2563eb;">Send via Email</button>
+                <button type="button" onclick="initiateApproval('sms')" style="background: #10b981;">Send via SMS</button>
+                <button type="button" class="btn-danger" onclick="closeApprovalModal()" style="margin-top: 10px;">Cancel</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
+
