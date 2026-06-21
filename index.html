@@ -397,6 +397,11 @@
                         </div>
                     </div>
 
+                    <div class="form-group">
+                        <label>NIC Number</label>
+                        <input type="text" id="clientNIC" placeholder="e.g. 199012345678 or 901234567V">
+                    </div>
+
                     <button type="button" class="generate" onclick="generateAllKeys()">✨ Auto-Generate ALL Keys</button>
 
                     <div class="form-group">
@@ -628,6 +633,7 @@
                 Email: document.getElementById('clientEmail').value.trim(),
                 Phone1: document.getElementById('phone1').value.trim(),
                 Phone2: document.getElementById('phone2').value.trim(),
+                NIC: document.getElementById('clientNIC').value.trim(),
                 LicenseKey1: document.getElementById('key1').value.trim(),
                 LicenseKey2: document.getElementById('key2').value.trim(),
                 LicenseKey3: document.getElementById('key3').value.trim(),
@@ -698,6 +704,7 @@
             document.getElementById('clientEmail').value = client.Email || '';
             document.getElementById('phone1').value = client.Phone1 || '';
             document.getElementById('phone2').value = client.Phone2 || '';
+            document.getElementById('clientNIC').value = client.NIC || '';
             document.getElementById('key1').value = client.LicenseKey1 || '';
             document.getElementById('key2').value = client.LicenseKey2 || '';
             document.getElementById('key3').value = client.LicenseKey3 || '';
