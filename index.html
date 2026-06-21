@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPOS Cloud License & Service Manager</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: rgba(30, 41, 59, 0.7);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-color);
+            background-image: radial-gradient(circle at top right, #1e1b4b 0%, var(--bg-color) 40%);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        h1, h2 { margin-top: 0; color: #fff; font-weight: 700; }
+        h1 { text-align: center; margin-bottom: 20px; }
+
+        /* ===== LOGIN OVERLAY ===== */
+        #loginOverlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: #0f172a;
+            background-image: radial-gradient(circle at 60% 30%, #1e1b4b 0%, #0f172a 55%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-card {
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 48px 40px;
+            width: 380px;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+            text-align: center;
+            animation: fadeSlide 0.5s ease;
+        }
+        @keyframes fadeSlide {
+            from { opacity: 0; transform: translateY(30px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .login-logo {
+            font-size: 42px;
+            margin-bottom: 10px;
+        }
+        .login-card h2 {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .login-card p {
+            color: var(--text-muted);
+            margin-bottom: 28px;
+            font-size: 14px;
+        }
+        .login-input {
+            width: 100%;
+            padding: 12px 14px;
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: white;
+            font-size: 15px;
+            box-sizing: border-box;
+            margin-bottom: 14px;
+            transition: all 0.3s;
+        }
+        .login-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+        .login-btn {
+            width: 100%;
+            padding: 13px;
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 6px;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .login-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+        .login-btn:active { transform: translateY(0); }
+        .login-error {
+            color: #fca5a5;
+            font-size: 13px;
+            margin-top: 12px;
+            min-height: 20px;
+        }
+        /* ===== END LOGIN ===== */
+
+        /* ===== PRINT STYLES ===== */
+        .print-header { display: none; }
+        
+        @media print {
+            body {
+                background: white;
+                color: black;
+                padding: 0;
+            }
+            #loginOverlay, .tabs, h1, .glass-panel:nth-child(1), .filter-bar, .action-btn, th:last-child, td:last-child, button {
+                display: none !important;
+            }
+            .glass-panel {
+                background: transparent;
+                border: none;
+                box-shadow: none;
+                padding: 0;
+            }
+            h2 { color: black; text-align: center; font-size: 24px; margin-bottom: 20px;}
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #ccc; padding: 10px; color: black; }
+            th { background-color: #f1f5f9; -webkit-print-color-adjust: exact; }
+            .print-header {
+                display: block;
+                text-align: center;
+                margin-bottom: 20px;
+            }
+            .print-header h1 { color: black; display: block !important; margin-bottom: 5px; }
+            .print-header p { margin: 0; color: #555; }
+        }
+        /* ===== END PRINT STYLES ===== */
+
+
+        /* Tabs Navigation */
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 24px;
+        }
+        .tab-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 12px 30px;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .tab-btn.active {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+        }
+        .tab-btn:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Containers */
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 24px;
+        }
+
+        .glass-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Forms */
+        .form-group { margin-bottom: 16px; }
+        label { display: block; margin-bottom: 6px; color: var(--text-muted); font-size: 0.9em; }
+        input, select {
+            width: 100%;
+            padding: 10px 12px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: white;
+            font-family: inherit;
+            font-size: 14px;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+        }
+        input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3); }
+        input[readonly] { background: rgba(0, 0, 0, 0.2); color: #cbd5e1; }
+
+        .flex-row { display: flex; gap: 10px; margin-bottom: 15px; }
+        .flex-row .form-group { flex: 1; margin-bottom: 0; }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 8px;
+        }
+        button:hover { background: var(--primary-hover); }
+        button.generate { background: #059669; padding: 8px; font-size: 13px; margin-top: 5px; margin-bottom: 15px;}
+        button.generate:hover { background: #047857; }
+        
+        /* Tables */
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 14px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { color: var(--text-muted); font-weight: 500; white-space: nowrap; }
+        
+        /* Badges & Actions */
+        .badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+        .badge-success { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; }
+        .badge-warning { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #f59e0b; }
+
+        .action-btn { padding: 6px 10px; font-size: 12px; width: auto; margin: 2px; }
+        .btn-danger { background: var(--danger); }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-success { background: var(--success); }
+        .btn-success:hover { background: #059669; }
+
+        /* Filter Bar */
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            background: rgba(0,0,0,0.2);
+            padding: 15px;
+            border-radius: 8px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        /* Firebase Config Alert */
+        .alert {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--danger);
+            color: #fca5a5;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== LOGIN OVERLAY ===== -->
+    <div id="loginOverlay">
+        <div class="login-card">
+            <div class="login-logo">🔐</div>
+            <h2>SPOS License Manager</h2>
+            <p>Sign in to access the admin panel</p>
+            <form id="loginForm" onsubmit="doLogin(event)">
+                <input class="login-input" type="text" id="loginUser" placeholder="Username" autocomplete="off">
+                <input class="login-input" type="password" id="loginPass" placeholder="Password">
+                <button class="login-btn" type="submit">Sign In →</button>
+            </form>
+            <div class="login-error" id="loginError"></div>
+        </div>
+    </div>
+
+    <!-- ===== MAIN APP ===== -->
+    <div id="mainApp" style="display:none;">
+
+    <div class="alert" id="configAlert">
+        <strong>⚠️ Firebase Setup Required!</strong> You need to edit <code>index.html</code> and replace the <code>firebaseConfig</code> object.
+    </div>
+
+    <h1>SPOS Cloud CRM & Licensing</h1>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('tab-licenses', this)">Key Licenses</button>
+        <button class="tab-btn" onclick="switchTab('tab-services', this)">Services & Billing</button>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- TAB 1: LICENSES                                -->
+    <!-- ============================================== -->
+    <div id="tab-licenses" class="tab-content active">
+        <div class="container">
+            <!-- Add Client Form -->
+            <div class="glass-panel">
+                <h2>Add / Update Client</h2>
+                <form id="licenseForm">
+                    <div class="form-group">
+                        <label>Company Header (Must exactly match Client DB)</label>
+                        <input type="text" id="companyName" required placeholder="e.g. Supiri POS Store">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Address Line 1</label>
+                        <input type="text" id="address1" placeholder="e.g. 123 Main Street">
+                    </div>
+                    <div class="form-group">
+                        <label>Address Line 2</label>
+                        <input type="text" id="address2" placeholder="e.g. Colombo 07">
+                    </div>
+                    <div class="form-group">
+                        <label>Address Line 3</label>
+                        <input type="text" id="address3">
+                    </div>
+                    
+                    <div class="flex-row">
+                        <div class="form-group">
+                            <label>Phone Number 1</label>
+                            <input type="text" id="phone1" placeholder="e.g. 0771234567">
+                        </div>
+                        <div class="form-group">
+                            <label>Phone Number 2</label>
+                            <input type="text" id="phone2">
+                        </div>
+                    </div>
+
+                    <button type="button" class="generate" onclick="generateAllKeys()">✨ Auto-Generate ALL Keys</button>
+
+                    <div class="form-group">
+                        <label>Key 1</label>
+                        <input type="text" id="key1" required style="font-family: monospace;">
+                    </div>
+                    <div class="form-group">
+                        <label>Key 2</label>
+                        <input type="text" id="key2" required style="font-family: monospace;">
+                    </div>
+                    <div class="form-group">
+                        <label>Key 3</label>
+                        <input type="text" id="key3" required style="font-family: monospace;">
+                    </div>
+                    <div class="form-group">
+                        <label>Activation Key</label>
+                        <input type="text" id="actKey" required style="font-family: monospace;">
+                    </div>
+                    <div class="form-group">
+                        <label>License Duration (Days)</label>
+                        <input type="number" id="durationDays" required value="365" min="1" placeholder="e.g. 365">
+                    </div>
+                    <button type="submit" style="margin-top: 20px;">Save to Cloud</button>
+                </form>
+            </div>
+
+            <!-- Client List -->
+            <div class="glass-panel">
+                <div class="print-header">
+                    <h1>SPOS Systems</h1>
+                    <p>Registered Clients & License Report</p>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2>Registered Clients</h2>
+                    <button class="action-btn" style="background: #475569; padding: 8px 15px;" onclick="window.print()">🖨️ Print Report</button>
+                </div>
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <input type="text" id="searchClient" placeholder="🔍 Search by Company Header..." onkeyup="filterLicenseTable()" style="border-color: var(--primary);">
+                </div>
+                <div class="table-container">
+                    <table id="clientTable">
+                        <thead>
+                            <tr>
+                                <th>Company Header</th>
+                                <th>Contact</th>
+                                <th>Activation Key</th>
+                                <th>Duration</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody><!-- Loaded via JS --></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- TAB 2: SERVICES & BILLING                      -->
+    <!-- ============================================== -->
+    <div id="tab-services" class="tab-content">
+        <div class="container" style="grid-template-columns: 1fr 2.5fr;">
+            
+            <!-- Add Service Form -->
+            <div class="glass-panel">
+                <h2>Add Service Record</h2>
+                <form id="serviceForm">
+                    <div class="form-group">
+                        <label>Client</label>
+                        <input type="text" id="srvClientSearch" placeholder="🔍 Search Client..." oninput="filterClientSelect()" style="margin-bottom: 5px; padding: 8px;">
+                        <select id="srvClient" required>
+                            <option value="">-- Select Client --</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Service Date</label>
+                        <input type="date" id="srvDate" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Service Description</label>
+                        <input type="text" id="srvDesc" required placeholder="e.g. Added new printer configuration">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Total Amount (Rs)</label>
+                        <input type="number" id="srvTotal" required min="0" step="0.01" oninput="calcCredit()">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Paid Amount (Rs)</label>
+                        <input type="number" id="srvPaid" required min="0" step="0.01" oninput="calcCredit()">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Credit Balance (Rs)</label>
+                        <input type="number" id="srvCredit" readonly style="color: #fbbf24; font-weight: bold; background: rgba(0,0,0,0.4);">
+                    </div>
+
+                    <button type="submit">Save Service</button>
+                </form>
+            </div>
+
+            <!-- Services List & Filters -->
+            <div class="glass-panel">
+                <div class="print-header">
+                    <h1>SPOS Systems</h1>
+                    <p>Services & Billing Report</p>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2>Service Records</h2>
+                    <button class="action-btn" style="background: #475569; padding: 8px 15px;" onclick="window.print()">🖨️ Print Report</button>
+                </div>
+                
+                <div class="filter-bar">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Client Search</label>
+                        <input type="text" id="fltClient" placeholder="Search Client..." oninput="renderServices()">
+                    </div>
+                    <div class="form-group">
+                        <label>Start Date</label>
+                        <input type="date" id="fltStartDate" onchange="renderServices()">
+                    </div>
+                    <div class="form-group">
+                        <label>End Date</label>
+                        <input type="date" id="fltEndDate" onchange="renderServices()">
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="fltStatus" onchange="renderServices()">
+                            <option value="ALL">All</option>
+                            <option value="UNSETTLED">Unsettled (Credit)</option>
+                            <option value="SETTLED">Settled</option>
+                        </select>
+                    </div>
+                    <button class="action-btn" onclick="clearServiceFilters()" style="margin-bottom: 3px; height: 38px;">Clear</button>
+                </div>
+
+                <div class="table-container">
+                    <table id="serviceTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Client</th>
+                                <th>Description</th>
+                                <th>Total</th>
+                                <th>Credit</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody><!-- Loaded via JS --></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    </div><!-- end #mainApp -->
+
+    <!-- Firebase SDK & Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getDatabase, ref, set, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+
+        // =========================================================
+        // IMPORTANT: REPLACE THIS CONFIG WITH YOUR FIREBASE CONFIG
+        // =========================================================
+        const firebaseConfig = {
+            databaseURL: "https://sposserver-license-default-rtdb.asia-southeast1.firebasedatabase.app/"
+        };
+        
+        let db;
+        let allServices = [];
+        let allClients = [];
+        let currentClientsData = {};
+
+        // ===== LOGIN LOGIC =====
+        window.doLogin = (e) => {
+            e.preventDefault();
+            const user = document.getElementById('loginUser').value.trim();
+            const pass = document.getElementById('loginPass').value;
+            if (user === 'spos official' && pass === '@Saveen2014518') {
+                document.getElementById('loginOverlay').style.display = 'none';
+                document.getElementById('mainApp').style.display = 'block';
+            } else {
+                const err = document.getElementById('loginError');
+                err.textContent = '❌ Invalid username or password!';
+                document.getElementById('loginPass').value = '';
+                setTimeout(() => { err.textContent = ''; }, 3000);
+            }
+        };
+        // ===== END LOGIN LOGIC =====
+
+        // Tab Switching Logic
+        window.switchTab = (tabId, btn) => {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            btn.classList.add('active');
+        };
+
+        // Init App
+        if (!firebaseConfig.databaseURL) {
+            document.getElementById('configAlert').style.display = 'block';
+        } else {
+            const app = initializeApp(firebaseConfig);
+            db = getDatabase(app);
+            
+            // Set default date for Service Form to today
+            document.getElementById('srvDate').valueAsDate = new Date();
+
+            loadClients();
+            loadServices();
+        }
+
+        // ==========================================
+        // 1. LICENSE MANAGER LOGIC
+        // ==========================================
+        window.generateAllKeys = () => {
+            const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%^&*()_-<=+!~';
+            const actC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            const gen = (chars, len) => Array.from({length: len}).map(() => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+            
+            document.getElementById('key1').value = gen(c, 10);
+            document.getElementById('key2').value = gen(c, 10);
+            document.getElementById('key3').value = gen(c, 10);
+            document.getElementById('actKey').value = 'ACT-' + gen(actC, 12);
+        };
+
+        document.getElementById('licenseForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if(!db) return;
+
+            const company = document.getElementById('companyName').value.trim();
+            const nodeKey = company.replace(/[.#$[\]\s]/g, '_'); 
+
+            const data = {
+                CompanyName: company,
+                Address1: document.getElementById('address1').value.trim(),
+                Address2: document.getElementById('address2').value.trim(),
+                Address3: document.getElementById('address3').value.trim(),
+                Phone1: document.getElementById('phone1').value.trim(),
+                Phone2: document.getElementById('phone2').value.trim(),
+                LicenseKey1: document.getElementById('key1').value.trim(),
+                LicenseKey2: document.getElementById('key2').value.trim(),
+                LicenseKey3: document.getElementById('key3').value.trim(),
+                ActivationKey: document.getElementById('actKey').value.trim(),
+                DurationDays: parseInt(document.getElementById('durationDays').value, 10),
+                CreatedAt: new Date().toISOString()
+            };
+
+            try {
+                await set(ref(db, 'licenses/' + nodeKey), data);
+                alert("Client Saved!");
+                e.target.reset();
+            } catch (error) {
+                alert("Error saving: " + error.message);
+            }
+        });
+
+        function loadClients() {
+            onValue(ref(db, 'licenses'), (snapshot) => {
+                const tbody = document.querySelector('#clientTable tbody');
+                const select = document.getElementById('srvClient');
+                tbody.innerHTML = '';
+                select.innerHTML = '<option value="">-- Select Client --</option>';
+                allClients = [];
+                currentClientsData = {};
+                
+                const data = snapshot.val();
+                if (data) {
+                    currentClientsData = data;
+                    Object.keys(data).forEach(nodeKey => {
+                        const client = data[nodeKey];
+                        allClients.push(client);
+                        
+                        // Populate Table
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${client.CompanyName}</td>
+                            <td style="font-size:12px;">${client.Phone1 || '-'} <br> <span style="color:#64748b">${client.Address1 || ''}</span></td>
+                            <td title="K1: ${client.LicenseKey1}\nK2: ${client.LicenseKey2}\nK3: ${client.LicenseKey3}">${client.ActivationKey}</td>
+                            <td>${client.DurationDays || 'N/A'} Days<br><span style="font-size:10px; color:#64748b">${client.CreatedAt ? new Date(client.CreatedAt).toLocaleDateString() : ''}</span></td>
+                            <td>
+                                <button class="action-btn" style="background:#f59e0b;" onclick="editClient('${nodeKey}')">Edit</button>
+                                <button class="action-btn btn-danger" onclick="deleteClient('${nodeKey}')">Delete</button>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+
+                        // Populate Select for Services Form
+                        const option = document.createElement('option');
+                        option.value = client.CompanyName;
+                        option.text = client.CompanyName;
+                        select.appendChild(option);
+                    });
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No clients found</td></tr>';
+                }
+            });
+        }
+
+        window.editClient = (nodeKey) => {
+            const client = currentClientsData[nodeKey];
+            if (!client) return;
+
+            document.getElementById('companyName').value = client.CompanyName || '';
+            document.getElementById('address1').value = client.Address1 || '';
+            document.getElementById('address2').value = client.Address2 || '';
+            document.getElementById('address3').value = client.Address3 || '';
+            document.getElementById('phone1').value = client.Phone1 || '';
+            document.getElementById('phone2').value = client.Phone2 || '';
+            document.getElementById('key1').value = client.LicenseKey1 || '';
+            document.getElementById('key2').value = client.LicenseKey2 || '';
+            document.getElementById('key3').value = client.LicenseKey3 || '';
+            document.getElementById('actKey').value = client.ActivationKey || '';
+            document.getElementById('durationDays').value = client.DurationDays || 365;
+
+            // Focus on the form
+            document.getElementById('companyName').focus();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        window.filterClientSelect = () => {
+            const input = document.getElementById('srvClientSearch').value.toLowerCase();
+            const options = document.getElementById('srvClient').options;
+            // Start from 1 to skip the "-- Select Client --" option
+            for (let i = 1; i < options.length; i++) {
+                const text = options[i].text.toLowerCase();
+                options[i].style.display = text.includes(input) ? '' : 'none';
+            }
+        };
+
+        window.deleteClient = async (nodeKey) => {
+            if (confirm("Delete this client license?")) await remove(ref(db, 'licenses/' + nodeKey));
+        };
+
+        window.filterLicenseTable = () => {
+            const input = document.getElementById('searchClient').value.toLowerCase();
+            document.querySelectorAll('#clientTable tbody tr').forEach(row => {
+                const cell = row.querySelector('td:first-child');
+                if (cell) row.style.display = cell.textContent.toLowerCase().includes(input) ? '' : 'none';
+            });
+        };
+
+        // ==========================================
+        // 2. SERVICES & BILLING LOGIC
+        // ==========================================
+        window.calcCredit = () => {
+            const total = parseFloat(document.getElementById('srvTotal').value) || 0;
+            const paid = parseFloat(document.getElementById('srvPaid').value) || 0;
+            const credit = total - paid;
+            document.getElementById('srvCredit').value = credit > 0 ? credit.toFixed(2) : '0.00';
+        };
+
+        document.getElementById('serviceForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if(!db) return;
+
+            const clientName = document.getElementById('srvClient').value.trim();
+            const total = parseFloat(document.getElementById('srvTotal').value) || 0;
+            const paid = parseFloat(document.getElementById('srvPaid').value) || 0;
+            const credit = total - paid;
+
+            const serviceData = {
+                ClientName: clientName,
+                Date: document.getElementById('srvDate').value,
+                Description: document.getElementById('srvDesc').value.trim(),
+                TotalAmount: total,
+                PaidAmount: paid,
+                CreditAmount: credit > 0 ? credit : 0,
+                Status: (credit <= 0) ? 'Settled' : 'Unsettled',
+                Timestamp: Date.now()
+            };
+
+            try {
+                // Generate unique ID for service
+                const newServiceRef = push(ref(db, 'services'));
+                await set(newServiceRef, serviceData);
+                alert("Service Record Saved!");
+                e.target.reset();
+                document.getElementById('srvDate').valueAsDate = new Date();
+            } catch (error) {
+                alert("Error saving service: " + error.message);
+            }
+        });
+
+        function loadServices() {
+            onValue(ref(db, 'services'), (snapshot) => {
+                allServices = [];
+                const data = snapshot.val();
+                if (data) {
+                    Object.keys(data).forEach(key => {
+                        allServices.push({ id: key, ...data[key] });
+                    });
+                    // Sort descending by Timestamp
+                    allServices.sort((a, b) => b.Timestamp - a.Timestamp);
+                }
+                renderServices();
+            });
+        }
+
+        window.renderServices = () => {
+            const tbody = document.querySelector('#serviceTable tbody');
+            tbody.innerHTML = '';
+
+            // Get Filter Values
+            const fltClient = document.getElementById('fltClient').value.toLowerCase();
+            const fltStartDate = document.getElementById('fltStartDate').value;
+            const fltEndDate = document.getElementById('fltEndDate').value;
+            const fltStatus = document.getElementById('fltStatus').value;
+
+            const filtered = allServices.filter(s => {
+                let match = true;
+                if (fltClient && !s.ClientName.toLowerCase().includes(fltClient)) match = false;
+                if (fltStartDate && s.Date < fltStartDate) match = false;
+                if (fltEndDate && s.Date > fltEndDate) match = false;
+                if (fltStatus === 'SETTLED' && s.Status !== 'Settled') match = false;
+                if (fltStatus === 'UNSETTLED' && s.Status !== 'Unsettled') match = false;
+                return match;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">No services match filters</td></tr>';
+                return;
+            }
+
+            filtered.forEach(s => {
+                const tr = document.createElement('tr');
+                const badgeClass = s.Status === 'Settled' ? 'badge-success' : 'badge-warning';
+                
+                tr.innerHTML = `
+                    <td style="white-space: nowrap;">${s.Date}</td>
+                    <td><strong>${s.ClientName}</strong></td>
+                    <td>${s.Description}</td>
+                    <td>Rs ${s.TotalAmount.toFixed(2)}</td>
+                    <td style="color:#fbbf24; font-weight:bold;">${s.CreditAmount > 0 ? 'Rs ' + s.CreditAmount.toFixed(2) : '-'}</td>
+                    <td><span class="badge ${badgeClass}">${s.Status}</span></td>
+                    <td>
+                        ${s.Status === 'Unsettled' ? 
+                          `<button class="action-btn btn-success" onclick="addPayment('${s.id}', ${s.CreditAmount}, ${s.PaidAmount})">Settle</button>` : 
+                          ''}
+                        <button class="action-btn btn-danger" onclick="deleteService('${s.id}')">Del</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        };
+
+        window.clearServiceFilters = () => {
+            document.getElementById('fltClient').value = '';
+            document.getElementById('fltStartDate').value = '';
+            document.getElementById('fltEndDate').value = '';
+            document.getElementById('fltStatus').value = 'ALL';
+            renderServices();
+        };
+
+        window.addPayment = async (serviceId, currentCredit, currentPaid) => {
+            const amountStr = prompt(`Current Credit: Rs ${currentCredit.toFixed(2)}\nEnter amount paying now:`);
+            if (amountStr === null) return;
+            
+            const payAmount = parseFloat(amountStr);
+            if (isNaN(payAmount) || payAmount <= 0) return alert("Invalid amount.");
+            if (payAmount > currentCredit) return alert("Payment exceeds credit balance!");
+
+            const newPaid = currentPaid + payAmount;
+            const newCredit = currentCredit - payAmount;
+            const newStatus = (newCredit <= 0) ? 'Settled' : 'Unsettled';
+
+            try {
+                await update(ref(db, 'services/' + serviceId), {
+                    PaidAmount: newPaid,
+                    CreditAmount: newCredit,
+                    Status: newStatus
+                });
+            } catch (error) {
+                alert("Error updating payment: " + error.message);
+            }
+        };
+
+        window.deleteService = async (serviceId) => {
+            if (confirm("Delete this service record?")) {
+                await remove(ref(db, 'services/' + serviceId));
+            }
+        };
+    </script>
+</body>
+</html>
