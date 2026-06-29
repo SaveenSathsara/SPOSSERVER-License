@@ -353,6 +353,7 @@
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('tab-licenses', this)">Key Licenses</button>
         <button class="tab-btn" onclick="switchTab('tab-services', this)">Services & Billing</button>
+        <button class="tab-btn" onclick="switchTab('tab-settings', this)">⚙️ Settings</button>
     </div>
 
     <!-- ============================================== -->
@@ -483,8 +484,30 @@
                     </div>
 
                     <div class="form-group">
-                        <label>Service Description</label>
-                        <input type="text" id="srvDesc" required placeholder="e.g. Added new printer configuration">
+                        <label>Service Type</label>
+                        <select id="srvType" required onchange="toggleOtherType()">
+                            <option value="">-- Select Type --</option>
+                            <option value="New Client">New Client</option>
+                            <option value="Existing Client">Existing Client</option>
+                            <option value="Hardware Change">Hardware Change</option>
+                            <option value="PC Name Change">PC Name Change</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="otherTypeDiv" style="display:none;">
+                        <label>Specify Other Type</label>
+                        <input type="text" id="srvTypeOther" placeholder="Type other service here">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Service Note Number</label>
+                        <input type="text" id="srvNoteNo" required placeholder="e.g. SN-0012">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Service Details</label>
+                        <input type="text" id="srvDesc" required placeholder="e.g. Changed Receipt Printer / POS Config">
                     </div>
 
                     <div class="form-group">
@@ -500,6 +523,16 @@
                     <div class="form-group">
                         <label>Credit Balance (Rs)</label>
                         <input type="number" id="srvCredit" readonly style="color: #fbbf24; font-weight: bold; background: rgba(0,0,0,0.4);">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Bank Account Details</label>
+                        <input type="text" id="srvBank" placeholder="e.g. BOC A/C 12345678">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Payment Receipt (Image/PDF)</label>
+                        <input type="file" id="srvReceipt" accept="image/jpeg, image/png, image/jpg, application/pdf">
                     </div>
 
                     <button type="submit">Save Service</button>
@@ -523,20 +556,11 @@
                         <input type="text" id="fltClient" placeholder="Search Client..." oninput="renderServices()">
                     </div>
                     <div class="form-group">
-                        <label>Start Date</label>
-                        <input type="date" id="fltStartDate" onchange="renderServices()">
-                    </div>
-                    <div class="form-group">
-                        <label>End Date</label>
-                        <input type="date" id="fltEndDate" onchange="renderServices()">
-                    </div>
-                    <div class="form-group">
                         <label>Status</label>
                         <select id="fltStatus" onchange="renderServices()">
                             <option value="ALL">All</option>
                             <option value="PENDING">Pending Approval</option>
-                            <option value="UNSETTLED">Unsettled (Credit)</option>
-                            <option value="SETTLED">Settled</option>
+                            <option value="APPROVED">Approved</option>
                         </select>
                     </div>
                     <button class="action-btn" onclick="clearServiceFilters()" style="margin-bottom: 3px; height: 38px;">Clear</button>
@@ -548,7 +572,8 @@
                             <tr>
                                 <th>Date</th>
                                 <th>Client</th>
-                                <th>Description</th>
+                                <th>Note Number</th>
+                                <th>Type</th>
                                 <th>Total</th>
                                 <th>Credit</th>
                                 <th>Status</th>
@@ -564,6 +589,32 @@
     </div>
 
     </div><!-- end #mainApp -->
+
+    <!-- ============================================== -->
+    <!-- TAB 3: SETTINGS                               -->
+    <!-- ============================================== -->
+    <div id="tab-settings" class="tab-content" style="max-width:600px; margin:0 auto;">
+        <div class="glass-panel">
+            <h2>⚙️ SMS Gateway Settings (Notify.lk)</h2>
+            <p style="color:var(--text-muted); font-size:13px; margin-top:-10px; margin-bottom:20px;">
+                Notify.lk SMS credentials. Register at <a href="https://notify.lk" target="_blank" style="color:#60a5fa;">notify.lk</a> (Works for all networks, no Dialog SIM needed).
+            </p>
+            <div class="form-group">
+                <label>User ID</label>
+                <input type="text" id="settUserId" placeholder="e.g. 12345">
+            </div>
+            <div class="form-group">
+                <label>API Key</label>
+                <input type="password" id="settApiKey" placeholder="Your Notify.lk API Key">
+            </div>
+            <div class="form-group">
+                <label>Sender ID (Must be approved by Notify.lk)</label>
+                <input type="text" id="settSender" placeholder="e.g. NotifyDEMO">
+            </div>
+            <button onclick="saveNotifySettings()" style="background: #059669;">💾 Save Settings</button>
+            <div id="settStatus" style="margin-top:12px; font-size:13px; color:#34d399; min-height:18px;"></div>
+        </div>
+    </div>
 
     <!-- Firebase SDK & Logic -->
     <script type="module">
@@ -596,9 +647,11 @@
         } else {
             const app = initializeApp(firebaseConfig);
             db = getDatabase(app);
-            
+
             // Set default date for Service Form to today
-            document.getElementById('srvDate').valueAsDate = new Date();
+            if (document.getElementById('srvDate')) {
+                document.getElementById('srvDate').valueAsDate = new Date();
+            }
 
             loadClients();
             loadServices();
@@ -739,13 +792,22 @@
         };
 
         // ==========================================
-        // 2. SERVICES & BILLING LOGIC
+        // 2. SERVICES & HARDWARE LOGIC
         // ==========================================
         window.calcCredit = () => {
             const total = parseFloat(document.getElementById('srvTotal').value) || 0;
             const paid = parseFloat(document.getElementById('srvPaid').value) || 0;
             const credit = total - paid;
             document.getElementById('srvCredit').value = credit > 0 ? credit.toFixed(2) : '0.00';
+        };
+
+        window.toggleOtherType = () => {
+            const type = document.getElementById('srvType').value;
+            if (type === 'Other') {
+                document.getElementById('otherTypeDiv').style.display = 'block';
+            } else {
+                document.getElementById('otherTypeDiv').style.display = 'none';
+            }
         };
 
         let currentOtp = null;
@@ -758,9 +820,6 @@
             if(!db) return;
 
             const clientName = document.getElementById('srvClient').value.trim();
-            const total = parseFloat(document.getElementById('srvTotal').value) || 0;
-            const paid = parseFloat(document.getElementById('srvPaid').value) || 0;
-            const credit = total - paid;
 
             const client = allClients.find(c => c.CompanyName === clientName);
             if (!client || !client.Email) {
@@ -768,37 +827,56 @@
                 return;
             }
 
+            let type = document.getElementById('srvType').value;
+            if (type === 'Other') {
+                type = document.getElementById('srvTypeOther').value.trim() || 'Other';
+            }
+
+            const total = parseFloat(document.getElementById('srvTotal').value) || 0;
+            const paid = parseFloat(document.getElementById('srvPaid').value) || 0;
+            const credit = total - paid;
+
+            // Handle file upload Base64 encoding
+            let receiptBase64 = null;
+            const fileInput = document.getElementById('srvReceipt');
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                if (file.size > 2 * 1024 * 1024) { // 2MB limit
+                    alert("Receipt file must be under 2MB.");
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    receiptBase64 = e.target.result;
+                    proceedWithServiceSave(clientName, type, total, paid, credit, receiptBase64);
+                };
+                reader.readAsDataURL(file);
+            } else {
+                proceedWithServiceSave(clientName, type, total, paid, credit, null);
+            }
+        });
+
+        function proceedWithServiceSave(clientName, type, total, paid, credit, receiptBase64) {
             pendingServiceData = {
                 ClientName: clientName,
                 Date: document.getElementById('srvDate').value,
+                Type: type,
+                NoteNo: document.getElementById('srvNoteNo').value.trim(),
                 Description: document.getElementById('srvDesc').value.trim(),
                 TotalAmount: total,
                 PaidAmount: paid,
                 CreditAmount: credit > 0 ? credit : 0,
+                BankDetails: document.getElementById('srvBank').value.trim(),
+                ReceiptData: receiptBase64,
                 Status: 'Pending Approval',
                 Timestamp: Date.now()
             };
 
             isApproving = false;
-            currentOtp = Math.floor(100000 + Math.random() * 900000).toString();
-            const today = new Date().toLocaleDateString('en-CA');
-            const body = `SPOS Client Servise Rergistatin\n${today}\nThis is the Your Servise Approved Code . Please Inform This Code For Admin .\nYour Job Roll Number is ${currentOtp}\n©️SPOS Software - 2026`;
-            
-            const gasUrl = "https://script.google.com/macros/s/AKfycbw4n6h-yoqR-iga4axLQ0D1SLCxYKbi74OPTqDi7PB2IzsmjNBEEaOKw6Ay0cxDkS88sQ/exec";
-            fetch(gasUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: new URLSearchParams({
-                    "to": client.Email,
-                    "subject": "Service Creation OTP",
-                    "body": body
-                })
-            }).then(() => alert("OTP Code has been sent to " + client.Email + " successfully!"))
-              .catch(err => alert("Email Delivery Failed!\nError: " + err));
-            
-            document.getElementById('otpInput').value = '';
-            document.getElementById('otpModal').style.display = 'flex';
-        });
+            // Show Email/SMS choice modal (same as approval)
+            pendingApprovalId = null;
+            document.getElementById('approvalModal').style.display = 'flex';
+        }
 
         window.closeOtpModal = () => {
             document.getElementById('otpModal').style.display = 'none';
@@ -823,7 +901,6 @@
                     await set(newServiceRef, pendingServiceData);
                     alert("Service Record Saved Successfully!");
                     document.getElementById('serviceForm').reset();
-                    document.getElementById('srvDate').valueAsDate = new Date();
                 }
                 closeOtpModal();
             } catch (error) {
@@ -832,6 +909,7 @@
         };
 
         window.openApprovalModal = (serviceId) => {
+            isApproving = true;
             pendingApprovalId = serviceId;
             document.getElementById('approvalModal').style.display = 'flex';
         };
@@ -842,9 +920,17 @@
         };
 
         window.initiateApproval = (method) => {
-            if (!pendingApprovalId) return;
-            const service = allServices.find(s => s.id === pendingApprovalId);
-            const client = allClients.find(c => c.CompanyName === service.ClientName);
+            // For service creation (isApproving=false), get client from pendingServiceData
+            // For approval (isApproving=true), get client from pendingApprovalId
+            let client;
+            if (isApproving && pendingApprovalId) {
+                const service = allServices.find(s => s.id === pendingApprovalId);
+                client = allClients.find(c => c.CompanyName === service.ClientName);
+            } else if (pendingServiceData) {
+                client = allClients.find(c => c.CompanyName === pendingServiceData.ClientName);
+            }
+
+            if (!client) { alert("Client not found!"); return; }
 
             if (method === 'email' && (!client || !client.Email)) {
                 alert("Client has no email registered!"); return;
@@ -853,9 +939,15 @@
                 alert("Client has no Phone 1 registered!"); return;
             }
 
+            if (method === 'whatsapp' && (!client || !client.Phone1)) {
+                alert("Client has no Phone 1 registered!"); return;
+            }
+
             currentOtp = Math.floor(100000 + Math.random() * 900000).toString();
             const today = new Date().toLocaleDateString('en-CA');
-            const body = `SPOS Client Servise Rergistatin\n${today}\nThis is the Your Servise Approved Code . Please Inform This Code For Admin .\nYour Job Roll Number is ${currentOtp}\n©️SPOS Software - 2026`;
+            const actionLabel = isApproving ? 'Service Approval' : 'Service Registration';
+            const smsBody = `SPOS ${actionLabel}\n${today}\nYour OTP Code: ${currentOtp}\nPlease give this to the admin.\n(c)SPOS 2026`;
+            const emailBody = `SPOS Client Service Registration\n${today}\nThis is your Service OTP Code. Please inform this code to the admin.\nYour OTP Code is: ${currentOtp}\n\n(c) SPOS Software - 2026`;
 
             if (method === 'email') {
                 const gasUrl = "https://script.google.com/macros/s/AKfycbw4n6h-yoqR-iga4axLQ0D1SLCxYKbi74OPTqDi7PB2IzsmjNBEEaOKw6Ay0cxDkS88sQ/exec";
@@ -864,18 +956,63 @@
                     headers: { "Content-Type": "application/x-www-form-urlencoded" },
                     body: new URLSearchParams({
                         "to": client.Email,
-                        "subject": "Service Approval OTP",
-                        "body": body
+                        "subject": `SPOS OTP - ${actionLabel}`,
+                        "body": emailBody
                     })
-                }).then(() => alert("OTP Code has been sent to " + client.Email + " successfully!"))
-                  .catch(err => alert("Email Delivery Failed!\nError: " + err));
+                }).then(() => {
+                    document.getElementById('otpMsg').textContent = `OTP sent to ${client.Email}. Enter the code below.`;
+                    alert("OTP Code has been sent to " + client.Email + " successfully!");
+                }).catch(err => alert("Email Delivery Failed!\nError: " + err));
+
+            } else if (method === 'whatsapp') {
+                let phone = client.Phone1.replace(/\s+/g, '').replace(/^0/, '94').replace(/^\+/, '');
+                const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(smsBody)}`;
+                try {
+                    window.open(waUrl, '_blank');
+                    document.getElementById('otpMsg').textContent = `WhatsApp opened for ${client.Phone1}. Enter the OTP below.`;
+                } catch (err) {
+                    alert("Pop-up blocked! Please allow pop-ups to open WhatsApp.");
+                }
+
             } else {
-                window.location.href = `sms:${client.Phone1}?body=${encodeURIComponent(body)}`;
+                // SMS via Notify.lk API
+                const userId  = localStorage.getItem('notify_userId')  || '';
+                const apiKey  = localStorage.getItem('notify_apiKey')  || '';
+                const sender  = localStorage.getItem('notify_sender')  || 'NotifyDEMO';
+
+                if (!userId || !apiKey) {
+                    alert("Notify.lk API credentials not set!\nPlease go to Settings tab and configure your User ID and API Key.");
+                    return;
+                }
+
+                // Normalize phone: Notify.lk needs 94XXXXXXXXX format
+                let phone = client.Phone1.replace(/\s+/g, '').replace(/^0/, '94').replace(/^\+/, '');
+
+                const url = new URL('https://app.notify.lk/api/v1/send');
+                url.searchParams.append('user_id', userId);
+                url.searchParams.append('api_key', apiKey);
+                url.searchParams.append('sender_id', sender);
+                url.searchParams.append('to', phone);
+                url.searchParams.append('message', smsBody);
+
+                fetch(url.toString(), {
+                    method: 'GET'
+                }).then(res => res.json()).then(data => {
+                    if (data && data.status === 'success') {
+                        document.getElementById('otpMsg').textContent = `OTP SMS sent to ${client.Phone1}. Enter the code below.`;
+                        alert(`OTP SMS sent to ${client.Phone1} successfully!`);
+                    } else {
+                        const errMsg = Array.isArray(data.errors) ? data.errors[0] : (data.errors || JSON.stringify(data));
+                        alert('SMS sending failed: ' + errMsg);
+                    }
+                }).catch(err => {
+                    alert('SMS API Error: ' + err.message + '\n\nMake sure you have valid Notify.lk credentials in Settings.');
+                });
             }
 
-            isApproving = true;
             document.getElementById('approvalModal').style.display = 'none';
             document.getElementById('otpInput').value = '';
+            document.getElementById('otpMsg').textContent = 'Please enter the OTP sent to the client.';
             document.getElementById('otpModal').style.display = 'flex';
         };
 
@@ -900,43 +1037,37 @@
 
             // Get Filter Values
             const fltClient = document.getElementById('fltClient').value.toLowerCase();
-            const fltStartDate = document.getElementById('fltStartDate').value;
-            const fltEndDate = document.getElementById('fltEndDate').value;
             const fltStatus = document.getElementById('fltStatus').value;
 
             const filtered = allServices.filter(s => {
                 let match = true;
                 if (fltClient && !s.ClientName.toLowerCase().includes(fltClient)) match = false;
-                if (fltStartDate && s.Date < fltStartDate) match = false;
-                if (fltEndDate && s.Date > fltEndDate) match = false;
-                if (fltStatus === 'SETTLED' && s.Status !== 'Settled') match = false;
-                if (fltStatus === 'UNSETTLED' && s.Status !== 'Unsettled') match = false;
+                if (fltStatus === 'APPROVED' && s.Status !== 'Approved') match = false;
                 if (fltStatus === 'PENDING' && s.Status !== 'Pending Approval') match = false;
                 return match;
             });
 
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">No services match filters</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No services match filters</td></tr>';
                 return;
             }
 
             filtered.forEach(s => {
                 const tr = document.createElement('tr');
-                const badgeClass = s.Status === 'Settled' ? 'badge-success' : 'badge-warning';
+                const badgeClass = s.Status === 'Approved' ? 'badge-success' : 'badge-warning';
                 
                 tr.innerHTML = `
-                    <td style="white-space: nowrap;">${s.Date}</td>
+                    <td style="white-space: nowrap;">${s.Date || '-'}</td>
                     <td><strong>${s.ClientName}</strong></td>
-                    <td>${s.Description}</td>
-                    <td>Rs ${s.TotalAmount.toFixed(2)}</td>
+                    <td><span style="color:#60a5fa; font-family:monospace;">${s.NoteNo || '-'}</span></td>
+                    <td>${s.Type || '-'}</td>
+                    <td>Rs ${s.TotalAmount ? s.TotalAmount.toFixed(2) : '0.00'}</td>
                     <td style="color:#fbbf24; font-weight:bold;">${s.CreditAmount > 0 ? 'Rs ' + s.CreditAmount.toFixed(2) : '-'}</td>
                     <td><span class="badge ${badgeClass}">${s.Status}</span></td>
                     <td>
+                        ${s.ReceiptData ? `<a href="${s.ReceiptData}" download="Receipt_${s.NoteNo}" title="Download Receipt" style="text-decoration:none;">📄</a>` : ''}
                         ${s.Status === 'Pending Approval' ?
                           `<button class="action-btn" style="background:#8b5cf6;" onclick="openApprovalModal('${s.id}')">Approve</button>` : ''}
-                        ${s.Status === 'Unsettled' || s.Status === 'Approved' ? 
-                          `<button class="action-btn btn-success" onclick="addPayment('${s.id}', ${s.CreditAmount}, ${s.PaidAmount})">Settle</button>` : 
-                          ''}
                         <button class="action-btn btn-danger" onclick="deleteService('${s.id}')">Del</button>
                     </td>
                 `;
@@ -946,33 +1077,8 @@
 
         window.clearServiceFilters = () => {
             document.getElementById('fltClient').value = '';
-            document.getElementById('fltStartDate').value = '';
-            document.getElementById('fltEndDate').value = '';
             document.getElementById('fltStatus').value = 'ALL';
             renderServices();
-        };
-
-        window.addPayment = async (serviceId, currentCredit, currentPaid) => {
-            const amountStr = prompt(`Current Credit: Rs ${currentCredit.toFixed(2)}\nEnter amount paying now:`);
-            if (amountStr === null) return;
-            
-            const payAmount = parseFloat(amountStr);
-            if (isNaN(payAmount) || payAmount <= 0) return alert("Invalid amount.");
-            if (payAmount > currentCredit) return alert("Payment exceeds credit balance!");
-
-            const newPaid = currentPaid + payAmount;
-            const newCredit = currentCredit - payAmount;
-            const newStatus = (newCredit <= 0) ? 'Settled' : 'Unsettled';
-
-            try {
-                await update(ref(db, 'services/' + serviceId), {
-                    PaidAmount: newPaid,
-                    CreditAmount: newCredit,
-                    Status: newStatus
-                });
-            } catch (error) {
-                alert("Error updating payment: " + error.message);
-            }
         };
 
         window.deleteService = async (serviceId) => {
@@ -980,6 +1086,37 @@
                 await remove(ref(db, 'services/' + serviceId));
             }
         };
+
+        // ==========================================
+        // SETTINGS: Notify.lk SMS Credentials
+        // ==========================================
+        window.saveNotifySettings = () => {
+            const userId = document.getElementById('settUserId').value.trim();
+            const apiKey = document.getElementById('settApiKey').value.trim();
+            const sender = document.getElementById('settSender').value.trim() || 'NotifyDEMO';
+            if (!userId || !apiKey) {
+                document.getElementById('settStatus').textContent = '❌ User ID and API Key are required!';
+                document.getElementById('settStatus').style.color = '#f87171';
+                return;
+            }
+            localStorage.setItem('notify_userId', userId);
+            localStorage.setItem('notify_apiKey', apiKey);
+            localStorage.setItem('notify_sender', sender);
+            document.getElementById('settStatus').textContent = '✅ Settings saved successfully!';
+            document.getElementById('settStatus').style.color = '#34d399';
+            setTimeout(() => { document.getElementById('settStatus').textContent = ''; }, 3000);
+        };
+
+        // Load saved settings into fields on page load
+        setTimeout(() => {
+            const userId = localStorage.getItem('notify_userId') || '';
+            const apiKey = localStorage.getItem('notify_apiKey') || '';
+            const sender = localStorage.getItem('notify_sender') || '';
+            if (document.getElementById('settUserId')) document.getElementById('settUserId').value = userId;
+            if (document.getElementById('settApiKey')) document.getElementById('settApiKey').value = apiKey;
+            if (document.getElementById('settSender')) document.getElementById('settSender').value = sender;
+        }, 500);
+
     </script>
 
     <!-- OTP Verification Modal -->
@@ -995,14 +1132,15 @@
         </div>
     </div>
 
-    <!-- Approval Choice Modal -->
+    <!-- Approval Choice Modal - used for BOTH Service Creation AND Service Approval -->
     <div id="approvalModal" class="modal-overlay">
         <div class="modal-box">
-            <h3>Approve Service Note</h3>
+            <h3>Send OTP Code</h3>
             <p style="color:#cbd5e1; font-size:14px; margin-bottom:15px;">How do you want to send the OTP code to the client?</p>
             <div class="modal-actions" style="flex-direction: column;">
-                <button type="button" onclick="initiateApproval('email')" style="background: #2563eb;">Send via Email</button>
-                <button type="button" onclick="initiateApproval('sms')" style="background: #10b981;">Send via SMS</button>
+                <button type="button" onclick="initiateApproval('email')" style="background: #2563eb;">📧 Send via Email</button>
+                <button type="button" onclick="initiateApproval('whatsapp')" style="background: #22c55e; margin-top:10px;">💬 Send via WhatsApp</button>
+                <button type="button" onclick="initiateApproval('sms')" style="background: #10b981; margin-top:10px;">📱 Send via SMS (Notify.lk)</button>
                 <button type="button" class="btn-danger" onclick="closeApprovalModal()" style="margin-top: 10px;">Cancel</button>
             </div>
         </div>
